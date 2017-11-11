@@ -5,15 +5,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #include "commands.h"
 #include "built_in.h"
+char PATH[]="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
 static struct built_in_command built_in_commands[] = {
   { "cd", do_cd, validate_cd_argv },
   { "pwd", do_pwd, validate_pwd_argv },
   { "fg", do_fg, validate_fg_argv }
 };
+
 
 static int is_built_in_command(const char* command_name)
 {
@@ -60,22 +63,46 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])//se
 		if((pid=fork())<0){
 			printf("fork error");
 		}else if(pid==0){
+			
 			if(strcmp(com->argv[0],"ls")==0
 				|| strcmp(com->argv[0],"cat")==0){
+				
 				char path[]="/bin/";
 				strcat(path,com->argv[0]);
 				com->argv[0]=path;
-				//free path ??
 				execv(com->argv[0],com->argv);
-			} else if(strcmp(com->argv[0],"vim")==0){
+				
+				/*char fpath[128];
+				char path[128];
+				strcpy(path,PATH);
+
+				char* ptr = strtok(path,":");
+				printf("%s",ptr);
+				while(ptr != NULL
+				|| (execv(fpath,com->argv))!=-1){
+				
+				strcpy(fpath,ptr);
+				strcat(fpath,com->argv[0]);
+				//execv(fpath,com->argv[0]);
+				ptr = strtok(path,":");
+				}*/
+			}
+			
+			else if(strcmp(com->argv[0],"vim")==0){
 				char path[]="/usr/bin/";
 				strcat(path,com->argv[0]);
 				com->argv[0]=path;
 				//free path??
 				execv(com->argv[0],com->argv);
-			} else{//there is full path in argv[0]
+			}
+			
+			else{//there is full path in argv[0]
 				execv(com->argv[0],com->argv);
 			}
+
+
+
+
 		}else{
 			wait(&pid);//&pid <- correct?
 		}
