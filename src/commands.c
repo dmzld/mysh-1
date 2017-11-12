@@ -9,7 +9,7 @@
 
 #include "commands.h"
 #include "built_in.h"
-char PATH[]="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+//char PATH[]="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
 static struct built_in_command built_in_commands[] = {
   { "cd", do_cd, validate_cd_argv },
@@ -58,43 +58,50 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])//se
       return 0;
     } else if (strcmp(com->argv[0], "exit") == 0) {
       return 1;
-    } else {
+    } //else if(strcmp(com->argv[1],"|")==0){
+
+	
+	
+	
+	else {
 		int pid;
 		if((pid=fork())<0){
 			printf("fork error");
 		}else if(pid==0){
 			
-			if(strcmp(com->argv[0],"ls")==0
-				|| strcmp(com->argv[0],"cat")==0){
-				
-				char path[]="/bin/";
+			/*if(strcmp(com->argv[0],"ls")==0
+				|| strcmp(com->argv[0],"cat")==0){*/
+			if(strchr(*(com->argv),'/')==NULL){
+				/*char path[]="/bin/";
 				strcat(path,com->argv[0]);
 				com->argv[0]=path;
-				execv(com->argv[0],com->argv);
+				execv(com->argv[0],com->argv);*/
 				
-				/*char fpath[128];
-				char path[128];
-				strcpy(path,PATH);
-
-				char* ptr = strtok(path,":");
-				printf("%s",ptr);
-				while(ptr != NULL
-				|| (execv(fpath,com->argv))!=-1){
+				char fpath[128];
+				char PATH[]="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 				
-				strcpy(fpath,ptr);
-				strcat(fpath,com->argv[0]);
-				//execv(fpath,com->argv[0]);
-				ptr = strtok(path,":");
-				}*/
+				char* ptr = strtok(PATH,":");
+								
+				while(ptr != NULL){
+				
+					strcpy(fpath,ptr);
+					strcat(fpath,"/");
+					strcat(fpath,com->argv[0]);
+					//printf("%s\n %s\n",ptr,fpath);
+					execv(fpath,com->argv);
+				
+					ptr = strtok(NULL,":");
+				}
 			}
 			
-			else if(strcmp(com->argv[0],"vim")==0){
+			/*else if(strcmp(com->argv[0],"vim")==0){
 				char path[]="/usr/bin/";
 				strcat(path,com->argv[0]);
 				com->argv[0]=path;
 				//free path??
 				execv(com->argv[0],com->argv);
-			}
+			}*/
+			
 			
 			else{//there is full path in argv[0]
 				execv(com->argv[0],com->argv);
