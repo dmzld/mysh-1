@@ -6,10 +6,17 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <sys/un.h>
+#include <sys/socket.h>
+#include <pthread.h>
 
 #include "commands.h"
 #include "built_in.h"
-//char PATH[]="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+
+#define SERVER "/tmp/test_server"
+
+void* thread_server(void * commands);
+int creation(struct single_command *com);
 
 static struct built_in_command built_in_commands[] = {
   { "cd", do_cd, validate_cd_argv },
@@ -31,95 +38,110 @@ static int is_built_in_command(const char* command_name)
   return -1; // Not found
 }
 
-/*
- * Description: Currently this function only handles single built_in commands. You should modify this structure to launch process and offer pipeline functionality.
+
+ /* Description: Currently this function only handles single built_in commands. You should modify this structure to launch process and offer pipeline functionality.
  */
 int evaluate_command(int n_commands, struct single_command (*commands)[512])//second validate
 {
   if (n_commands > 0) {
-    struct single_command* com = (*commands);//com = struct first value
+    struct single_command* com = (*commands);
+    
+	if(n_commands == 1){
+		return creation(com);
+		//return 0;
+	} else{
+		/*int i=0;
+		while(*(*commands+1)!=NULL){}*/
+		struct single_command* com2 = (*commands+1);
+		
+		//create thread
+		pthread_t thread_id;
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		pthread_create(&thread_id, &attr, thread_server, com2);//server(thread)
+		
+		//child
+		if(fork()==0){
+			int client_sock;
+			struct sockaddr_un server_addr;
+			if((client_sock = socket(PF_FILE,SOCK_STREAM,0))==-1){
+				printf("c_socket error");
+				exit(1);
+			}
+			memset(&server_addr,0,sizeof(server_addr));
+			server_addr.sun_family = AF_UNIX;
+			strcpy(server_addr.sun_path,SERVER);
+			//execv(a)
+			while((connect(client_sock,(struct sockaddr*)&server_addr,sizeof(server_addr)))==-1){
+				//close(0);
+				//close(1);
+				if(fork()==0){
+					dup2(client_sock,1);
+					creation(com);
+					exit(0);
+				}
+				pthread_join(thread_id,NULL);
+				close(client_sock);
+				exit(0);
+			}
+		}
+	}
+  }	
+	return 0;
+}
 
-    assert(com->argc != 0);//exception code 
-
+	
+		
+int creation(struct single_command *com){
+	//assert(com->argc != 0);
     int built_in_pos = is_built_in_command(com->argv[0]);// 
 
-    if (built_in_pos != -1) {//if built_in_pos exist & no error
-		
+    if (built_in_pos != -1) {
       if (built_in_commands[built_in_pos].command_validate(com->argc, com->argv)) {//if error in  vaildate
 		if (built_in_commands[built_in_pos].command_do(com->argc, com->argv) != 0) {//if error in do
-          fprintf(stderr, "%s: Error occurs\n", com->argv[0]);
+			fprintf(stderr, "%s: Error occurs\n", com->argv[0]);
         }
-      } else {
-        fprintf(stderr, "%s: Invalid arguments\n", com->argv[0]);
-        return -1;
+	  } else {
+  	     fprintf(stderr, "%s: Invalid arguments\n", com->argv[0]);
+  	     return -1;
       }
-
-    } else if (strcmp(com->argv[0], "") == 0) {
-      return 0;
-    } else if (strcmp(com->argv[0], "exit") == 0) {
-      return 1;
-    } //else if(strcmp(com->argv[1],"|")==0){
-
-	
-	
-	
-	else {
-		int pid;
-		if((pid=fork())<0){
+	} else if (strcmp(com->argv[0], "") == 0) {
+  	    return 0;
+	} else if (strcmp(com->argv[0], "exit") == 0) {
+		return 1;
+	} else {
+		int pid3;
+		if((pid3=fork())<0){
 			printf("fork error");
-		}else if(pid==0){
+		} else if(pid3==0){
 			
-			/*if(strcmp(com->argv[0],"ls")==0
-				|| strcmp(com->argv[0],"cat")==0){*/
-			if(strchr(*(com->argv),'/')==NULL){
-				/*char path[]="/bin/";
-				strcat(path,com->argv[0]);
-				com->argv[0]=path;
-				execv(com->argv[0],com->argv);*/
-				
+			if(strchr(com->argv[0],'/')==NULL){//path resolution
 				char fpath[128];
 				char PATH[]="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-				
-				char* ptr = strtok(PATH,":");
-								
-				while(ptr != NULL){
-				
-					strcpy(fpath,ptr);
+				char* ptr2 = strtok(PATH,":");
+							
+				while(ptr2 != NULL){
+					strcpy(fpath,ptr2);
 					strcat(fpath,"/");
 					strcat(fpath,com->argv[0]);
-					//printf("%s\n %s\n",ptr,fpath);
 					execv(fpath,com->argv);
-				
-					ptr = strtok(NULL,":");
-				}
-			}
-			
-			/*else if(strcmp(com->argv[0],"vim")==0){
-				char path[]="/usr/bin/";
-				strcat(path,com->argv[0]);
-				com->argv[0]=path;
-				//free path??
-				execv(com->argv[0],com->argv);
-			}*/
-			
-			
-			else{//there is full path in argv[0]
+					ptr2 = strtok(NULL,":");
+					}
+	
+			} else{//there is full path in argv[0]
 				execv(com->argv[0],com->argv);
 			}
 
-
-
-
-		}else{
-			wait(&pid);//&pid <- correct?
+		} else{
+			wait(&pid3);
 		}
-		//fprintf(stderr, "%s: command not found\n", com->argv[0]);
-      //return -1;
-    }
-  }
-
-  return 0;
+		return 0;
+	}
+	return 0;
 }
+	
+
+
 
 void free_commands(int n_commands, struct single_command (*commands)[512])
 {
@@ -136,4 +158,66 @@ void free_commands(int n_commands, struct single_command (*commands)[512])
   }
 
   memset((*commands), 0, sizeof(struct single_command) * n_commands);//initialize
+}
+
+void* thread_server(void *commands){
+	
+	struct single_command *com2 = (struct single_command *)commands;
+
+	int server_sock, client_sock,c_size;
+	struct sockaddr_un server_sockaddr,client_sockaddr;
+	//socket
+	if((server_sock = socket(PF_FILE, SOCK_STREAM, 0))==-1){
+		printf("s_socket error");
+		exit(1);
+	}
+
+	memset(&server_sockaddr, 0, sizeof(server_sockaddr));
+	memset(&client_sockaddr, 0, sizeof(client_sockaddr));
+	server_sockaddr.sun_family = AF_UNIX;
+	strcpy(server_sockaddr.sun_path, SERVER);
+	//access(SERVER,F_OK);
+	unlink(SERVER);
+	//bind
+	if((bind(server_sock, (struct sockaddr*)&server_sockaddr,sizeof(server_sockaddr)))==-1){
+		printf("bind error");
+		close(server_sock);
+		exit(1);
+	}
+	
+	while(1){
+		//listen
+		if((listen(server_sock,10))==-1){
+			printf("listen error");
+			close(server_sock);
+			//exit(1);
+			continue;
+		}
+		//accept
+		c_size = sizeof(client_sockaddr);
+		client_sock = accept(server_sock, (struct sockaddr *)&client_sockaddr,&c_size);
+		if(client_sock ==-1){
+			printf("accept error");
+			close(server_sock);
+			close(client_sock);
+			//exit(1);
+			continue;
+		}
+		//b
+		if(fork()==0){
+			//close(0);
+			creation(com2);//fork()
+			close(client_sock);
+			close(server_sock);
+			exit(0);
+		
+		}
+		wait(0);
+		//close(server_sock);
+		close(client_sock);
+		close(server_sock);
+		pthread_exit(0);
+		
+	}
+
 }

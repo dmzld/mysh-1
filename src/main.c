@@ -8,15 +8,18 @@
 #include "built_in.h"
 #include "utils.h"
 
-void handler(int sig);
+
 
 int main()
 {
+   signal(SIGINT,SIG_IGN);
+   signal(SIGTSTP,SIG_IGN);
+	//catch_sigint(SIGINT);
+	//catch_sigtstp(SIGTSTP);
+  
+  
   char buf[8096];
 
-  //signal(SIGINT,SIG_IGN);
-  //signal(SIGTSTP,SIG_IGN);
-  
   while (1) {
     fgets(buf, 8096, stdin);
 	
@@ -36,6 +39,3 @@ int main()
 
   return 0;
 }
-
-void handler(int sig){
-	}
